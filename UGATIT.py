@@ -599,7 +599,8 @@ class UGATIT(object) :
     def load(self, checkpoint_dir):
         print(" [*] Reading checkpoints...")
         checkpoint_dir = os.path.join(checkpoint_dir, self.model_dir)
-
+        print(f"model_dir: {self.model_dir}")
+        print(f"loading from: {self.checkpoint_dir}")
         ckpt = tf.train.get_checkpoint_state(checkpoint_dir)
         if ckpt and ckpt.model_checkpoint_path:
             ckpt_name = os.path.basename(ckpt.model_checkpoint_path)
@@ -663,3 +664,50 @@ class UGATIT(object) :
                     '../..' + os.path.sep + image_path), self.img_size, self.img_size))
             index.write("</tr>")
         index.close()
+    
+    def predict(self, foldername):
+        tf.global_variables_initializer().run()
+
+        # saver to save model
+        self.saver = tf.train.Saver()
+
+        # summary writer
+        self.writer = tf.summary.FileWriter(self.log_dir + '/' + self.model_dir, self.sess.graph)
+
+
+        # restore check-point if it exits
+        could_load, checkpoint_counter = self.load(self.checkpoint_dir)
+        
+        
+        
+        test_A_files = glob(foldername +"/*.*")
+        self.result_dir = os.path.join(self.result_dir, self.model_dir)
+        check_folder(self.result_dir)
+        if could_load :
+            print(" [*] Load SUCCESS")
+        else :
+            print(" [!] Load failed...")
+
+        # write html for visual comparison
+        index_path = os.path.join(self.result_dir, 'index.html')
+        index = open(index_path, 'w')
+        index.write("<html><body><table><tr>")
+        index.write("<th>name</th><th>input</th><th>output</th></tr>")
+
+        for sample_file  in test_A_files : # A -> B
+            print('Processing A image: ' + sample_file)
+            sample_image = np.asarray(load_test_data(sample_file, size=self.img_size))
+            image_path = os.path.join(self.result_dir,'{0}'.format(os.path.basename(sample_file)))
+
+            fake_img = self.sess.run(self.test_fake_B, feed_dict = {self.test_domain_A : sample_image})
+            save_images(fake_img, [1, 1], image_path)
+
+            index.write("<td>%s</td>" % os.path.basename(image_path))
+
+            index.write("<td><img src='%s' width='%d' height='%d'></td>" % (sample_file if os.path.isabs(sample_file) else (
+                '../..' + os.path.sep + sample_file), self.img_size, self.img_size))
+            index.write("<td><img src='%s' width='%d' height='%d'></td>" % (image_path if os.path.isabs(image_path) else (
+                '../..' + os.path.sep + image_path), self.img_size, self.img_size))
+            index.write("</tr>")
+        index.close()
+    
